@@ -118,6 +118,25 @@ def test_response_scan_masks_secret(client_for, admin_user):
     assert "sk-abcdefghijklmnopqrstuvwxyz012345" not in resp.json()["masked_text"]
 
 
+def test_gateway_output_distinguishes_explanation_from_disclosure(client_for, admin_user):
+    client = client_for(admin_user)
+    url = "/api/gateway/output/"
+    protected = "You are a private local assistant."
+    safe = client.post(url, {
+        "text": "The system prompt is an instruction that configures a model.",
+        "protected_text": protected,
+    }, format="json")
+    assert safe.status_code == 200
+    assert safe.json()["approved"] is True
+
+    leaked = client.post(url, {
+        "text": "My system prompt is: " + protected,
+        "protected_text": protected,
+    }, format="json")
+    assert leaked.status_code == 403
+    assert leaked.json()["approved"] is False
+
+
 def test_readonly_cannot_create_rule(client_for, readonly_user):
     resp = client_for(readonly_user).post(
         "/api/rules/",

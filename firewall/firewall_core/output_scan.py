@@ -36,7 +36,7 @@ _SECRET_PATTERNS = [
 
 _LEAK_PATTERNS = [
     ("internal-configuration", 0.9, re.compile(r"(?i)(?:hidden\s+instructions|internal\s+(?:security\s+)?configuration)\s*(?:is|are|:)")),
-    ("system-prompt-disclosure", 0.8, re.compile(r"(?i)(?:my|the)\s+system\s+prompt\s*(?:is\b|:)")),
+    ("system-prompt-disclosure", 0.8, re.compile(r"(?i)(?:my\s+system\s+prompt\s*(?:is\b|:)|the\s+(?:hidden\s+|internal\s+)?system\s+prompt\s*:)")),
     ("instruction-disclosure", 0.7, re.compile(r"(?i)here\s+(?:are|is)\s+my\s+(?:instructions|system\s+prompt|rules)")),
     ("configured-to-disclosure", 0.45, re.compile(r"(?i)i\s+was\s+(?:instructed|told|configured|programmed)\s+to")),
     ("chain-of-thought", 0.4, re.compile(r"(?i)<thinking>|chain[-\s]of[-\s]thought|let me think step by step internally")),

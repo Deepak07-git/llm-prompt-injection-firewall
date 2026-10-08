@@ -63,6 +63,14 @@ _BENIGN_TERMS = {
 }
 _BIAS = -1.5
 _TOKEN = re.compile(r"[a-z']+")
+_DIRECTED_REQUEST = re.compile(
+    r"^\s*(?:please\s+)?(?:ignore|disregard|forget|override|bypass|disable|"
+    r"reveal|show|print|send|email|forward|invoke|call|execute|enable|enter|"
+    r"pretend|act|jailbreak|simulate)\b|"
+    r"\b(?:you|assistant|model)\s+(?:must|will|are\s+now)\b|"
+    r"\bfrom\s+now\s+on\b",
+    re.IGNORECASE,
+)
 
 
 class HeuristicClassifier:
@@ -83,6 +91,10 @@ class HeuristicClassifier:
                 logit += _BENIGN_TERMS[tok]
 
         conf = 1.0 / (1.0 + math.exp(-logit))
+        # Topic words alone are weak evidence: a request about defending
+        # against jailbreaks should not be treated as a jailbreak command.
+        if not _DIRECTED_REQUEST.search(text):
+            conf = min(conf, 0.49)
         is_attack = conf >= 0.5
         severity = (
             "critical" if conf >= 0.9 else

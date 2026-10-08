@@ -215,11 +215,6 @@ class FirewallEngine:
             scan.findings.append(OutputFinding("application-system-disclosure", 0.98, 1))
             scan.score = 1 - (1 - scan.score) * 0.02
             scan.masked_text = "[REDACTED]"
-        if self._enforce_security:
-            matches = self._rule_engine.inspect(normalize(text).combined)
-            for match in matches:
-                scan.findings.append(OutputFinding("generated-" + match.category, match.weight, 1))
-                scan.score = 1 - (1 - scan.score) * (1 - match.weight)
         action = Action.allow
         if scan.score >= self._output_block_threshold:
             action = Action.block
@@ -229,6 +224,6 @@ class FirewallEngine:
             # Operator thresholds cannot permit credential or instruction leakage.
             if any(f.severity >= 0.7 and f.label not in {
                 "credit-card", "aadhaar"
-            } for f in scan.findings) or matches:
+            } for f in scan.findings):
                 action = Action.block
         return OutputResult(action=action, scan=scan)
