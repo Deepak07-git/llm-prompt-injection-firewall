@@ -12,3 +12,4 @@ detections.jsonl
 .runtime.json
 chatbot/.env
 chatbot/conversations.sqlite3
+chatbot/frontend/node_modules/

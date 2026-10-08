@@ -18,6 +18,41 @@ class RuleAction(models.TextChoices):
     BLOCK = "block", "Block"
 
 
+class PolicyProfile(models.Model):
+    """A company's reviewed terms; only the selected profile is enforced."""
+
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=64, unique=True)
+    source_filename = models.CharField(max_length=255)
+    source_sha256 = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class PolicyDraft(models.Model):
+    """Validated candidate patterns awaiting a human's activation choice."""
+
+    provider_name = models.CharField(max_length=120)
+    provider_slug = models.SlugField(max_length=64)
+    source_filename = models.CharField(max_length=255)
+    source_sha256 = models.CharField(max_length=64)
+    model_used = models.CharField(max_length=120)
+    candidates = models.JSONField(default=list)
+    rejected = models.JSONField(default=list)
+    created_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True,
+                                   blank=True, related_name="policy_drafts_created")
+    activated_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True,
+                                     blank=True, related_name="policy_drafts_activated")
+    created_at = models.DateTimeField(auto_now_add=True)
+    activated_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f"{self.provider_name} draft {self.pk}"
+
+
 class Rule(models.Model):
     """A configurable regex detection rule, editable from the dashboard.
 
@@ -36,6 +71,11 @@ class Rule(models.Model):
                               help_text="Optional per-rule action override.")
     enabled = models.BooleanField(default=True, db_index=True)
     builtin = models.BooleanField(default=False, help_text="Seeded default rule.")
+    policy_profile = models.ForeignKey(PolicyProfile, on_delete=models.CASCADE, null=True,
+                                       blank=True, related_name="rules")
+    source_quote = models.TextField(blank=True)
+    positive_examples = models.JSONField(default=list, blank=True)
+    negative_examples = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -71,6 +111,8 @@ class FirewallConfig(models.Model):
     risk_high = models.FloatField(default=0.70)
     risk_critical = models.FloatField(default=0.90)
     default_mode = models.CharField(max_length=12, choices=RuleAction.choices, default=RuleAction.BLOCK)
+    active_policy = models.ForeignKey(PolicyProfile, on_delete=models.SET_NULL, null=True,
+                                      blank=True, related_name="+")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

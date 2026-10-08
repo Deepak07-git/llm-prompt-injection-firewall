@@ -1,32 +1,32 @@
 {% extends "dashboard/base.html" %}
 {% block title %}Overview{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div class="page-title mb-0">Overview</div>
+<div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-4">
+  <div><div class="section-eyebrow">SECURITY PULSE</div><h1 class="page-title mb-0">Firewall overview</h1><p class="page-intro">A clear view of every decision your AI gateway makes.</p></div>
   {% if chain_ok %}<span class="badge badge-allow"><i class="bi bi-check-circle"></i> Log chain intact</span>
   {% else %}<span class="badge badge-critical"><i class="bi bi-exclamation-triangle"></i> Log chain broken</span>{% endif %}
 </div>
 
-<div class="row g-3 mb-4">
-  <div class="col"><div class="kpi"><div class="label">Total requests</div><div class="value">{{ total }}</div></div></div>
-  <div class="col"><div class="kpi blocked"><div class="label">Blocked</div><div class="value">{{ blocked }}</div></div></div>
-  <div class="col"><div class="kpi sanitized"><div class="label">Sanitized</div><div class="value">{{ sanitized }}</div></div></div>
-  <div class="col"><div class="kpi allowed"><div class="label">Allowed</div><div class="value">{{ allowed }}</div></div></div>
-  <div class="col"><div class="kpi"><div class="label">Avg latency</div><div class="value">{{ avg_latency }}<span class="fs-6 text-dim">ms</span></div></div></div>
-  <div class="col"><div class="kpi"><div class="label">Active rules</div><div class="value">{{ rules_active }}</div></div></div>
+<div class="kpi-grid mb-4">
+  <div class="col"><div class="kpi"><div class="label"><i class="bi bi-activity me-1"></i> Total requests</div><div class="value">{{ total }}</div></div></div>
+  <div class="col"><div class="kpi blocked"><div class="label"><i class="bi bi-shield-x me-1"></i> Blocked</div><div class="value">{{ blocked }}</div></div></div>
+  <div class="col"><div class="kpi sanitized"><div class="label"><i class="bi bi-stars me-1"></i> Sanitized</div><div class="value">{{ sanitized }}</div></div></div>
+  <div class="col"><div class="kpi allowed"><div class="label"><i class="bi bi-shield-check me-1"></i> Allowed</div><div class="value">{{ allowed }}</div></div></div>
+  <div class="col"><div class="kpi"><div class="label"><i class="bi bi-stopwatch me-1"></i> Avg latency</div><div class="value">{{ avg_latency }}<span class="unit text-dim">ms</span></div></div></div>
+  <div class="col"><div class="kpi"><div class="label"><i class="bi bi-sliders2 me-1"></i> Active rules</div><div class="value">{{ rules_active }}</div></div></div>
 </div>
 
 <div class="row g-3">
   <div class="col-lg-7">
     <div class="card h-100">
       <div class="card-header">Requests over time</div>
-      <div class="card-body"><canvas id="timelineChart" height="140"></canvas></div>
+      <div class="card-body"><div class="chart-frame"><canvas id="timelineChart"></canvas></div></div>
     </div>
   </div>
   <div class="col-lg-5">
     <div class="card h-100">
       <div class="card-header">Action distribution</div>
-      <div class="card-body"><canvas id="actionChart" height="140"></canvas></div>
+      <div class="card-body"><div class="chart-frame"><canvas id="actionChart"></canvas></div></div>
     </div>
   </div>
 </div>
@@ -60,23 +60,23 @@
 <script>
 async function loadCharts() {
   const res = await fetch('/api/analytics/', {headers: {'Accept': 'application/json'}});
-  if (!res.ok) return;
+  if (!res.ok) throw new Error('Analytics unavailable');
   const d = await res.json();
   const tl = d.timeline || [];
-  new Chart(document.getElementById('timelineChart'), {
+  FirewallCharts.create('timelineChart', {
     type: 'line',
     data: { labels: tl.map(x => x.day), datasets: [{ label: 'Requests', data: tl.map(x => x.count),
-      borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.15)', fill: true, tension: .3 }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#232c3f' } }, y: { grid: { color: '#232c3f' } } } }
+      borderColor: '#61d8c6', backgroundColor: 'rgba(97,216,198,.13)', fill: true, tension: .35, pointBackgroundColor: '#a8f4e8' }] },
+    options: { plugins: { legend: { display: false } }, scales: FirewallCharts.axes }
   });
   const acts = d.by_action || {};
-  new Chart(document.getElementById('actionChart'), {
+  FirewallCharts.create('actionChart', {
     type: 'doughnut',
-    data: { labels: Object.keys(acts), datasets: [{ data: Object.values(acts),
-      backgroundColor: ['#22c55e', '#f59e0b', '#f59e0b', '#ef4444'] }] },
-    options: { plugins: { legend: { position: 'bottom' } } }
+    data: { labels: Object.keys(acts).map(FirewallCharts.label), datasets: [{ data: Object.values(acts),
+      backgroundColor: Object.keys(acts).map(FirewallCharts.color), borderWidth: 2, borderColor: '#101827' }] },
+    options: { cutout: '72%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 18 } } } }
   });
 }
-loadCharts();
+loadCharts().catch(FirewallCharts.unavailable);
 </script>
 {% endblock %}

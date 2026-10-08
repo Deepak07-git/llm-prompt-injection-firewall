@@ -26,7 +26,7 @@ from apps.auditlog import services as audit
 from apps.auditlog.models import RequestLog, verify_chain
 from apps.firewall.models import FirewallConfig, Rule
 from apps.firewall.ratelimit import check_and_consume, register_attack
-from apps.firewall.services import build_engine, bump_engine_version
+from apps.firewall.services import active_rule_count, build_engine, bump_engine_version
 from firewall_core.scoring import RiskLevel
 
 
@@ -43,7 +43,7 @@ class HealthView(APIView):
     def get(self, request):
         return Response({
             "status": "ok",
-            "rules": Rule.objects.filter(enabled=True).count(),
+            "rules": active_rule_count(),
             "ai_enabled": FirewallConfig.load().use_ai,
             "log_chain": verify_chain()["ok"],
         })

@@ -9,6 +9,7 @@ requests doesn't re-query and re-compile every rule each time.
 from __future__ import annotations
 
 from django.core.cache import cache
+from django.db.models import Q
 
 from apps.detection.client import build_classifier
 from apps.firewall.models import FirewallConfig, RuleAction
@@ -26,14 +27,22 @@ def bump_engine_version() -> None:
         cache.set(_ENGINE_CACHE_KEY, 1)
 
 
-def _load_rules():
+def _load_rules(active_policy_id=None):
     from apps.firewall.models import Rule as RuleModel
     from firewall_core.rules import default_rules
 
-    rows = list(RuleModel.objects.all())
-    if not rows:
-        return default_rules()
-    return [r.to_core() for r in rows]
+    rows = list(RuleModel.objects.filter(
+        Q(policy_profile__isnull=True) | Q(policy_profile_id=active_policy_id)
+    ))
+    rules = [r.to_core() for r in rows]
+    existing_ids = {r.id for r in rules}
+    # Built-in protections remain present even before seed_rules is run.
+    rules.extend(r for r in default_rules() if r.id not in existing_ids)
+    return rules
+
+
+def active_rule_count() -> int:
+    return sum(rule.enabled for rule in _load_rules(FirewallConfig.load().active_policy_id))
 
 
 def _action_policy(config: FirewallConfig) -> dict[RiskLevel, Action]:
@@ -57,7 +66,7 @@ def build_engine(*, local_only: bool = False, enforce_security: bool = False) ->
     if enforce_security:
         policy[RiskLevel.low] = Action.allow
     return FirewallEngine(
-        rules=_load_rules(),
+        rules=_load_rules(config.active_policy_id),
         classifier=HeuristicClassifier() if local_only else build_classifier(),
         thresholds=config.thresholds(),
         action_policy=policy,

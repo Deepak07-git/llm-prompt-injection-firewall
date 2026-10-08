@@ -38,9 +38,11 @@ class RuleSerializer(serializers.ModelSerializer):
         fields = [
             "id", "rule_id", "pattern", "severity", "category", "description",
             "mitigation", "atlas", "action", "enabled", "builtin",
+            "policy_profile", "source_quote", "positive_examples", "negative_examples",
             "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "builtin", "created_at", "updated_at"]
+        read_only_fields = ["id", "builtin", "policy_profile", "source_quote",
+                            "positive_examples", "negative_examples", "created_at", "updated_at"]
 
     def validate_pattern(self, value: str) -> str:
         import re

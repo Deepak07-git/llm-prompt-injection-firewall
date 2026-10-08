@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 import uuid
 
@@ -7,15 +8,16 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.accounts.permissions import role_of
 from apps.accounts.models import Role
 from apps.auditlog import exports
 from apps.auditlog.models import RequestLog, verify_chain
-from apps.firewall.models import FirewallConfig, Rule
-from apps.firewall.services import build_engine, bump_engine_version
+from apps.firewall.models import FirewallConfig, PolicyDraft, PolicyProfile, Rule
+from apps.firewall.policy_import import PolicyImportError, activate_draft, create_draft
+from apps.firewall.services import active_rule_count, build_engine, bump_engine_version
 
 
 def _can_manage(request) -> bool:
@@ -54,7 +56,7 @@ def overview(request):
         "allowed": qs.filter(action="allow").count(),
         "warned": qs.filter(action="warn").count(),
         "avg_latency": round(qs.aggregate(a=Avg("response_time_ms"))["a"] or 0.0, 1),
-        "rules_active": Rule.objects.filter(enabled=True).count(),
+        "rules_active": active_rule_count(),
         "recent": qs[:15],
         "chain_ok": verify_chain()["ok"],
         "active": "overview",
@@ -119,8 +121,76 @@ def rules(request):
             rule.save(update_fields=["enabled"])
             bump_engine_version()
         return redirect("dashboard:rules")
-    ctx = {"rules": Rule.objects.all(), "can_manage": _can_manage(request), "active": "rules"}
+    config = FirewallConfig.load()
+    ctx = {"rules": Rule.objects.select_related("policy_profile").all(),
+           "profiles": PolicyProfile.objects.all().order_by("name"),
+           "recent_drafts": PolicyDraft.objects.order_by("-created_at")[:5],
+           "active_policy": config.active_policy,
+           "can_manage": _can_manage(request), "active": "rules"}
     return render(request, "dashboard/rules.html", ctx)
+
+
+@login_required
+def policy_upload(request):
+    if request.method != "POST":
+        return redirect("dashboard:rules")
+    if not _can_manage(request):
+        return HttpResponseForbidden("You cannot manage provider policies.")
+    upload = request.FILES.get("terms")
+    if not upload:
+        messages.error(request, "Choose a PDF, DOCX, or TXT terms file.")
+        return redirect("dashboard:rules")
+    try:
+        draft = create_draft(provider_name=request.POST.get("provider_name", ""),
+                             upload=upload, user=request.user)
+    except PolicyImportError as exc:
+        messages.error(request, str(exc))
+        return redirect("dashboard:rules")
+    return redirect("dashboard:policy_preview", pk=draft.pk)
+
+
+@login_required
+def policy_preview(request, pk: int):
+    draft = get_object_or_404(PolicyDraft, pk=pk)
+    trial = None
+    if request.method == "POST":
+        if not _can_manage(request):
+            return HttpResponseForbidden("You cannot activate provider policies.")
+        if "try_prompt" in request.POST:
+            prompt = request.POST.get("prompt", "")[:1000]
+            trial = {"prompt": prompt,
+                     "matches": [candidate["label"] for candidate in draft.candidates
+                                 if re.search(candidate["pattern"], prompt)]}
+        else:
+            try:
+                selected = [int(value) for value in request.POST.getlist("candidate")]
+                profile, count = activate_draft(draft, selected, user=request.user)
+            except (PolicyImportError, ValueError) as exc:
+                messages.error(request, str(exc))
+                return redirect("dashboard:policy_preview", pk=pk)
+            messages.success(request, f"Activated {count} reviewed rules for {profile.name}.")
+            return redirect("dashboard:rules")
+    candidates = list(enumerate(draft.candidates))
+    return render(request, "dashboard/policy_preview.html", {
+        "draft": draft, "candidates": candidates, "trial": trial,
+        "can_manage": _can_manage(request), "active": "rules",
+    })
+
+
+@login_required
+def policy_switch(request):
+    if request.method != "POST":
+        return redirect("dashboard:rules")
+    if not _can_manage(request):
+        return HttpResponseForbidden("You cannot change the active provider policy.")
+    profile_id = request.POST.get("profile_id")
+    profile = get_object_or_404(PolicyProfile, pk=profile_id) if profile_id else None
+    config = FirewallConfig.load()
+    config.active_policy = profile
+    config.save(update_fields=["active_policy", "updated_at"])
+    bump_engine_version()
+    messages.success(request, f"Active policy: {profile.name if profile else 'Built-in defaults only'}.")
+    return redirect("dashboard:rules")
 
 
 @login_required
