@@ -71,4 +71,5 @@ class RequestLogSerializer(serializers.ModelSerializer):
             "obfuscation_flags", "response_status", "response_time_ms",
             "model_used", "marked_false_positive", "marked_false_negative",
             "row_hash",
+            "chat_metadata",
         ]

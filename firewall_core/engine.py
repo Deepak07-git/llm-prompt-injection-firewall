@@ -19,7 +19,7 @@ from firewall_core.classifier import (
     HeuristicClassifier,
 )
 from firewall_core.normalize import normalize
-from firewall_core.output_scan import OutputScanner, OutputScanResult
+from firewall_core.output_scan import OutputScanner, OutputScanResult, OutputFinding
 from firewall_core.rules import Rule, RuleEngine, RuleMatch
 from firewall_core.sanitizer import Sanitizer
 from firewall_core.scoring import RiskLevel, RiskScore, score_request
@@ -108,6 +108,7 @@ class FirewallEngine:
         action_policy: dict[RiskLevel, Action] | None = None,
         output_block_threshold: float = 0.7,
         use_ai: bool = True,
+        enforce_security: bool = False,
     ) -> None:
         self._rule_engine = RuleEngine(rules)
         self._sanitizer = Sanitizer(rules)
@@ -117,6 +118,7 @@ class FirewallEngine:
         self._policy = action_policy or DEFAULT_ACTION_POLICY
         self._output_block_threshold = output_block_threshold
         self._use_ai = use_ai
+        self._enforce_security = enforce_security
 
     def inspect_request(
         self,
@@ -135,16 +137,16 @@ class FirewallEngine:
             joined_prior = "\n".join(conversation)
             prior_norm = normalize(joined_prior)
             prior_matches = self._rule_engine.inspect(prior_norm.combined)
+            scan_text = scan_text + "\n" + prior_norm.combined
             if prior_matches:
                 context_factor = min(0.2 + 0.1 * len(prior_matches), 0.6)
-                scan_text = scan_text + "\n" + prior_norm.combined
 
         rule_matches = self._rule_engine.inspect(scan_text)
 
         ai_verdict: ClassifierVerdict | None = None
         ai_confidence = 0.0
         if self._use_ai:
-            ai_verdict = self._classifier.classify(norm.combined)
+            ai_verdict = self._classifier.classify(scan_text)
             ai_confidence = ai_verdict.confidence if ai_verdict.is_attack else 0.0
 
         risk = score_request(
@@ -157,6 +159,20 @@ class FirewallEngine:
         )
 
         action = self._policy.get(risk.level, Action.allow)
+
+        rank = {Action.allow: 0, Action.warn: 1, Action.sanitize: 2, Action.block: 3}
+        for match in rule_matches:
+            if match.action in Action._value2member_map_:
+                override = Action(match.action)
+                if rank[override] > rank[action]:
+                    action = override
+        if self._enforce_security:
+            if any(m.severity == "critical" for m in rule_matches):
+                risk.level = RiskLevel.critical
+            if risk.level in (RiskLevel.high, RiskLevel.critical):
+                action = Action.block
+            elif risk.level == RiskLevel.medium and action == Action.allow:
+                action = Action.warn
 
         # Per-rule action override: a rule mapped to a stricter action escalates.
         sanitized_text = None
@@ -176,11 +192,27 @@ class FirewallEngine:
             normalized_text=norm.normalized,
         )
 
-    def inspect_response(self, text: str, *, mask: bool = True) -> OutputResult:
+    def inspect_response(self, text: str, *, mask: bool = True,
+                         protected_texts: list[str] | None = None) -> OutputResult:
         scan = self._output.scan(text, mask=mask)
+        if any(value and value in text for value in protected_texts or []):
+            scan.findings.append(OutputFinding("application-system-disclosure", 0.98, 1))
+            scan.score = 1 - (1 - scan.score) * 0.02
+            scan.masked_text = "[REDACTED]"
+        if self._enforce_security:
+            matches = self._rule_engine.inspect(normalize(text).combined)
+            for match in matches:
+                scan.findings.append(OutputFinding("generated-" + match.category, match.weight, 1))
+                scan.score = 1 - (1 - scan.score) * (1 - match.weight)
         action = Action.allow
         if scan.score >= self._output_block_threshold:
             action = Action.block
         elif scan.has_leak:
             action = Action.sanitize  # masked but returned
+        if self._enforce_security:
+            # Operator thresholds cannot permit credential or instruction leakage.
+            if any(f.severity >= 0.7 and f.label not in {
+                "credit-card", "aadhaar"
+            } for f in scan.findings) or matches:
+                action = Action.block
         return OutputResult(action=action, scan=scan)

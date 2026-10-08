@@ -12,7 +12,13 @@ import hashlib
 import json
 
 from django.contrib.auth.models import User
-from django.db import models
+from django.db import models, transaction
+from django.db.models import F
+
+
+class AuditAppendLock(models.Model):
+    """Singleton write lock serializing hash-chain appends across workers."""
+    sequence = models.BigIntegerField(default=0)
 
 
 class Action(models.TextChoices):
@@ -53,6 +59,7 @@ class RequestLog(models.Model):
     sanitized_prompt = models.TextField(blank=True)
     sanitized_output = models.TextField(blank=True)
     model_used = models.CharField(max_length=80, blank=True)
+    chat_metadata = models.JSONField(default=dict, blank=True)
 
     # False-positive / false-negative flags for analytics + model tuning.
     marked_false_positive = models.BooleanField(default=False)
@@ -69,21 +76,25 @@ class RequestLog(models.Model):
         return f"{self.request_id} {self.action} ({self.risk_level})"
 
     def _payload(self) -> str:
+        payload = {
+            "request_id": self.request_id,
+            "direction": self.direction,
+            "ip": self.ip_address,
+            "prompt_hash": self.prompt_hash,
+            "attacks": self.detected_attacks,
+            "rules": self.matched_rules,
+            "ai": round(self.ai_confidence, 6),
+            "risk": round(self.risk_score, 6),
+            "level": self.risk_level,
+            "action": self.action,
+            "status": self.response_status,
+            "prev": self.prev_hash,
+        }
+        # Keep historical hashes valid while binding new chat telemetry to the chain.
+        if self.chat_metadata:
+            payload["chat"] = self.chat_metadata
         return json.dumps(
-            {
-                "request_id": self.request_id,
-                "direction": self.direction,
-                "ip": self.ip_address,
-                "prompt_hash": self.prompt_hash,
-                "attacks": self.detected_attacks,
-                "rules": self.matched_rules,
-                "ai": round(self.ai_confidence, 6),
-                "risk": round(self.risk_score, 6),
-                "level": self.risk_level,
-                "action": self.action,
-                "status": self.response_status,
-                "prev": self.prev_hash,
-            },
+            payload,
             sort_keys=True,
             default=str,
         )
@@ -93,10 +104,16 @@ class RequestLog(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.row_hash:
-            last = RequestLog.objects.order_by("-id").first()
-            self.prev_hash = last.row_hash if last else ""
-            self.row_hash = self.compute_hash()
-        super().save(*args, **kwargs)
+            with transaction.atomic():
+                AuditAppendLock.objects.get_or_create(pk=1)
+                # UPDATE obtains a database write lock on SQLite and PostgreSQL.
+                # Acquire it before reading the predecessor, including the first row.
+                AuditAppendLock.objects.filter(pk=1).update(sequence=F("sequence") + 1)
+                last = RequestLog.objects.order_by("-id").first()
+                self.prev_hash = last.row_hash if last else ""
+                self.row_hash = self.compute_hash()
+                return super().save(*args, **kwargs)
+        return super().save(*args, **kwargs)
 
 
 def verify_chain() -> dict:

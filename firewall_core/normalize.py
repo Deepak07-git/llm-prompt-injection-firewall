@@ -25,8 +25,8 @@ _INVISIBLE_RE = re.compile(f"[{_INVISIBLE_CHARS}]")
 
 _B64_RUN = re.compile(r"[A-Za-z0-9+/]{16,}={0,2}")
 _HEX_RUN = re.compile(r"(?:[0-9a-fA-F]{2}[\s:]?){8,}")
-_URL_ENC = re.compile(r"(?:%[0-9a-fA-F]{2}){3,}")
-_UNICODE_ESCAPE = re.compile(r"(?:\\u[0-9a-fA-F]{4}){2,}")
+_URL_ENC = re.compile(r"%[0-9a-fA-F]{2}")
+_UNICODE_ESCAPE = re.compile(r"\\u[0-9a-fA-F]{4}")
 
 
 @dataclass
@@ -135,12 +135,16 @@ def normalize(text: str, *, max_decode_layers: int = 12) -> NormalizedText:
         flags.append("unicode-normalized")
 
     decoded_layers: list[str] = []
-    seen: set[str] = set()
+    seen: set[str] = {normalized}
 
     def _add(layer: str | None, flag: str) -> None:
         if not layer:
             return
         layer = layer.strip()
+        layer, count = _strip_invisible(layer)
+        if count and "decoded-invisible-chars" not in flags:
+            flags.append("decoded-invisible-chars")
+        layer = unicodedata.normalize("NFKC", layer)
         if not layer or layer in seen or len(decoded_layers) >= max_decode_layers:
             return
         seen.add(layer)
@@ -148,15 +152,22 @@ def normalize(text: str, *, max_decode_layers: int = 12) -> NormalizedText:
         if flag not in flags:
             flags.append(flag)
 
-    for run in _B64_RUN.findall(normalized):
-        _add(_try_base64(run), "base64-decoded")
-    for run in _HEX_RUN.findall(normalized):
-        _add(_try_hex(run), "hex-decoded")
-    for run in _URL_ENC.findall(normalized):
-        _add(_try_url(run), "url-decoded")
-    for run in _UNICODE_ESCAPE.findall(normalized):
-        _add(_try_unicode_escape(run), "unicode-escape-decoded")
-    _add(_try_rot13(normalized), "rot13-decoded")
+    # Decode complete URL/unicode text to preserve words split by sparse escapes,
+    # and inspect recovered layers too. The layer cap bounds nested decoding.
+    index = 0
+    while index <= len(decoded_layers) and index <= max_decode_layers:
+        current = normalized if index == 0 else decoded_layers[index - 1]
+        for run in _B64_RUN.findall(current):
+            _add(_try_base64(run), "base64-decoded")
+        for run in _HEX_RUN.findall(current):
+            _add(_try_hex(run), "hex-decoded")
+        if _URL_ENC.search(current):
+            _add(_try_url(current), "url-decoded")
+        if _UNICODE_ESCAPE.search(current):
+            _add(_UNICODE_ESCAPE.sub(lambda m: chr(int(m.group(0)[2:], 16)), current),
+                 "unicode-escape-decoded")
+        _add(_try_rot13(current), "rot13-decoded")
+        index += 1
 
     return NormalizedText(
         raw=text,

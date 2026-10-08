@@ -32,6 +32,7 @@ class Rule:
     enabled: bool = True
     # MITRE-ATLAS-style tag for AI-specific attacks (best-effort mapping).
     atlas: str = ""
+    action: str = ""
 
     def compiled(self) -> re.Pattern:
         return re.compile(self.pattern, re.IGNORECASE | re.DOTALL)
@@ -47,6 +48,7 @@ class RuleMatch:
     atlas: str
     excerpt: str
     weight: float
+    action: str = ""
 
 
 class RuleEngine:
@@ -72,6 +74,7 @@ class RuleEngine:
                         atlas=rule.atlas,
                         excerpt=excerpt,
                         weight=SEVERITY_WEIGHTS.get(rule.severity, 0.5),
+                        action=rule.action,
                     )
                 )
         return matches

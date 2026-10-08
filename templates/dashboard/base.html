@@ -17,6 +17,7 @@
       <i class="bi bi-shield-lock-fill"></i> <span>PI Firewall</span>
     </div>
     <nav class="nav flex-column">
+      <a class="nav-link {% if active == 'chat' %}active{% endif %}" href="{% url 'dashboard:chat' %}"><i class="bi bi-chat-dots"></i> Local AI Chat</a>
       <a class="nav-link {% if active == 'overview' %}active{% endif %}" href="{% url 'dashboard:overview' %}"><i class="bi bi-speedometer2"></i> Overview</a>
       <a class="nav-link {% if active == 'logs' %}active{% endif %}" href="{% url 'dashboard:logs' %}"><i class="bi bi-list-columns-reverse"></i> Audit Logs</a>
       <a class="nav-link {% if active == 'rules' %}active{% endif %}" href="{% url 'dashboard:rules' %}"><i class="bi bi-diagram-3"></i> Rules</a>

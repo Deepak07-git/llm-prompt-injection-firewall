@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "apps.api",
     "apps.threatintel",
     "apps.reports",
+    "apps.chat",
 ]
 
 MIDDLEWARE = [
@@ -181,3 +182,17 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "verbose"}},
     "root": {"handlers": ["console"], "level": "INFO"},
 }
+
+# Local chat and its optional correction helper. Never serialized to the browser.
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "phi3")
+OLLAMA_TIMEOUT_SECONDS = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "120"))
+ENABLE_AI_CORRECTION = _bool("ENABLE_AI_CORRECTION", False)
+CORRECTION_API_KEY = os.environ.get("CORRECTION_API_KEY", "")
+CORRECTION_BASE_URL = os.environ.get("CORRECTION_BASE_URL", "").rstrip("/")
+CORRECTION_MODEL = os.environ.get("CORRECTION_MODEL", "")
+CORRECTION_TIMEOUT_SECONDS = float(os.environ.get("CORRECTION_TIMEOUT_SECONDS", "30"))
+CORRECTION_MAX_TOKENS = int(os.environ.get("CORRECTION_MAX_TOKENS", "1000"))
+CHAT_MAX_MESSAGE_CHARS = 16000
+CHAT_MAX_HISTORY_MESSAGES = 40
+CHAT_MAX_HISTORY_CHARS = 64000

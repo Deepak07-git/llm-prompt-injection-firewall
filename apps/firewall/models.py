@@ -57,6 +57,7 @@ class Rule(models.Model):
             mitigation=self.mitigation,
             enabled=self.enabled,
             atlas=self.atlas,
+            action=self.action,
         )
 
 

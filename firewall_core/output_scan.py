@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 # (label, severity_weight, regex, mask_style)
 # mask_style: "full" -> fully redact, "partial" -> keep a hint (last 4 / domain).
 _SECRET_PATTERNS = [
-    ("openai-key", 0.95, re.compile(r"sk-[A-Za-z0-9]{20,}"), "full"),
+    ("openai-key", 0.95, re.compile(r"sk-(?!proj-)[A-Za-z0-9_-]{8,}"), "full"),
     ("openai-proj-key", 0.95, re.compile(r"sk-proj-[A-Za-z0-9_-]{20,}"), "full"),
     ("aws-access-key", 0.95, re.compile(r"AKIA[0-9A-Z]{16}"), "full"),
     ("aws-secret", 0.9, re.compile(r"aws_secret_access_key\s*=\s*[A-Za-z0-9/+=]{30,}", re.I), "full"),
@@ -18,12 +18,13 @@ _SECRET_PATTERNS = [
     ("google-api-key", 0.9, re.compile(r"AIza[0-9A-Za-z_-]{35}"), "full"),
     ("azure-key", 0.85, re.compile(r"(?i)azure[_-]?(?:api)?[_-]?key\s*[:=]\s*[A-Za-z0-9/+=]{20,}"), "full"),
     ("slack-token", 0.9, re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"), "full"),
-    ("private-key", 0.98, re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----"), "full"),
+    ("private-key", 0.98, re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----.*?(?:-----END (?:RSA |EC |OPENSSH |DSA |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----|\Z)", re.S), "full"),
     ("ssh-key", 0.8, re.compile(r"ssh-(?:rsa|ed25519|dss)\s+[A-Za-z0-9+/]{40,}"), "full"),
     ("jwt", 0.7, re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"), "full"),
-    ("bearer-token", 0.75, re.compile(r"(?i)bearer\s+[A-Za-z0-9._-]{20,}"), "full"),
+    ("bearer-token", 0.75, re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+"), "full"),
     ("db-conn-string", 0.85, re.compile(r"(?i)(?:postgres|postgresql|mysql|mongodb(?:\+srv)?|redis)://[^\s]+:[^\s]+@[^\s]+"), "full"),
-    ("password-assignment", 0.6, re.compile(r"(?i)(?:password|passwd|pwd)\s*[:=]\s*\S{6,}"), "full"),
+    ("password-assignment", 0.6, re.compile(r'''(?i)["']?(?:password|passwd|pwd)["']?\s*(?:[:=]|is\b)\s*(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)'''), "full"),
+    ("credential-assignment", 0.9, re.compile(r'''(?i)["']?\b(?:[\w-]*(?:api[ _-]?key|secret|token|credential)[\w-]*|access[ _-]?token|client[ _-]?secret)["']?\s*(?:[:=]|is\b)\s*(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)'''), "full"),
     ("credit-card", 0.7, re.compile(r"\b(?:\d[ -]?){13,16}\b"), "partial"),
     ("aadhaar", 0.7, re.compile(r"\b\d{4}\s?\d{4}\s?\d{4}\b"), "partial"),
     ("pan", 0.6, re.compile(r"\b[A-Z]{5}[0-9]{4}[A-Z]\b"), "partial"),
@@ -34,7 +35,8 @@ _SECRET_PATTERNS = [
 ]
 
 _LEAK_PATTERNS = [
-    ("system-prompt-disclosure", 0.8, re.compile(r"(?i)(?:my|the)\s+system\s+prompt\s+(?:is|:)")),
+    ("internal-configuration", 0.9, re.compile(r"(?i)(?:hidden\s+instructions|internal\s+(?:security\s+)?configuration)\s*(?:is|are|:)")),
+    ("system-prompt-disclosure", 0.8, re.compile(r"(?i)(?:my|the)\s+system\s+prompt\s*(?:is\b|:)")),
     ("instruction-disclosure", 0.7, re.compile(r"(?i)here\s+(?:are|is)\s+my\s+(?:instructions|system\s+prompt|rules)")),
     ("configured-to-disclosure", 0.45, re.compile(r"(?i)i\s+was\s+(?:instructed|told|configured|programmed)\s+to")),
     ("chain-of-thought", 0.4, re.compile(r"(?i)<thinking>|chain[-\s]of[-\s]thought|let me think step by step internally")),

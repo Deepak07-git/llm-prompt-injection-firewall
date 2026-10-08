@@ -50,15 +50,20 @@ def _action_policy(config: FirewallConfig) -> dict[RiskLevel, Action]:
     return policy  # block mode = defaults
 
 
-def build_engine() -> FirewallEngine:
+def build_engine(*, local_only: bool = False, enforce_security: bool = False) -> FirewallEngine:
     config = FirewallConfig.load()
+    from firewall_core.classifier import HeuristicClassifier
+    policy = _action_policy(config)
+    if enforce_security:
+        policy[RiskLevel.low] = Action.allow
     return FirewallEngine(
         rules=_load_rules(),
-        classifier=build_classifier(),
+        classifier=HeuristicClassifier() if local_only else build_classifier(),
         thresholds=config.thresholds(),
-        action_policy=_action_policy(config),
+        action_policy=policy,
         output_block_threshold=config.output_block_threshold,
         use_ai=config.use_ai,
+        enforce_security=enforce_security,
     )
 
 

@@ -62,6 +62,16 @@
     <div class="card mt-3"><div class="card-header">Sanitized prompt</div>
       <div class="card-body"><pre class="mb-0">{{ log.sanitized_prompt }}</pre></div></div>
     {% endif %}
+
+    {% if log.chat_metadata %}
+    <div class="card mt-3"><div class="card-header">Chat security telemetry</div>
+      <div class="card-body">
+        <p>Ollama latency: {{ log.chat_metadata.ollama_latency_ms }} ms</p>
+        <p>AI correction used: {{ log.chat_metadata.correction_used|yesno:"Yes,No" }}</p>
+        <p>Correction confidence: {{ log.chat_metadata.correction_confidence|default_if_none:"N/A" }}</p>
+        <p>Total latency: {{ log.chat_metadata.total_latency_ms }} ms</p>
+      </div></div>
+    {% endif %}
     {% if log.sanitized_output %}
     <div class="card mt-3"><div class="card-header">Masked output</div>
       <div class="card-body"><pre class="mb-0">{{ log.sanitized_output }}</pre></div></div>
