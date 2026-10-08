@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0b10">
+  <title>Orbit — Your private AI</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="/" aria-label="Orbit home"><span class="brand-mark"><svg viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="10" stroke="currentColor" stroke-width="1.5"/><ellipse cx="20" cy="20" rx="18" ry="7.5" transform="rotate(-36 20 20)" stroke="currentColor" stroke-width="1.5"/><circle cx="31" cy="10" r="2.3" fill="#c6f277"/></svg></span><span>orbit<span class="brand-period">.</span></span></a>
+      <button class="new-chat" id="newChat"><span>＋</span> New conversation <kbd>⌘ K</kbd></button>
+      <div class="history-heading"><span>YOUR SPACE</span><button id="searchToggle" aria-label="Search conversations" title="Search conversations">⌕</button></div>
+      <label class="search-wrap hidden" id="searchWrap"><span>⌕</span><input id="searchInput" type="search" placeholder="Find a conversation…"><kbd>ESC</kbd></label>
+      <section class="history" id="history" aria-label="Recent conversations"></section>
+      <div class="sidebar-bottom">
+        <div class="privacy-note"><span class="lock-icon">◈</span><div><b>Your space, your data.</b><span>Private conversations. Local AI.</span></div></div>
+        <div class="profile"><div class="avatar">O</div><div class="profile-copy"><b>On this device</b><span>Personal workspace</span></div><span class="profile-menu">···</span></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar"><button class="mobile-menu" id="mobileMenu" aria-label="Open menu">☰</button><div class="model-label"><span class="status-dot" id="headerDot"></span><span>Orbit assistant</span><span class="top-separator">/</span><select id="modelSelect" aria-label="Choose a local model"><option>Connecting…</option></select></div><div class="top-actions"><button class="top-icon" id="themeToggle" aria-label="Toggle color theme" title="Toggle theme">◐</button><a class="firewall-link" href="http://127.0.0.1:8000/" target="_blank" rel="noopener"><span class="shield-mini">⬡</span> Firewall <span class="external">↗</span></a></div></header>
+      <section class="chat-area" id="chatArea" aria-live="polite">
+        <div class="welcome" id="welcome"><div class="welcome-emblem"><div class="emblem-orbit"></div><div class="emblem-spark">✳</div></div><div class="eyebrow"><span></span> YOUR PRIVATE AI, RIGHT HERE</div><h1>A little more <span>you.</span></h1><p>Think out loud. Ask big questions. Make something useful.<br>Your conversations stay on this device.</p>
+          <div class="suggestion-grid">
+            <button class="suggestion" data-prompt="Help me brainstorm a fun weekend project I can finish in an afternoon."><span class="suggestion-icon green">✳</span><span><b>Make something</b><small>Brainstorm a weekend project</small></span><span class="suggestion-arrow">↗</span></button>
+            <button class="suggestion" data-prompt="Explain a surprisingly useful idea from science in a way that's easy to understand."><span class="suggestion-icon lilac">⌘</span><span><b>Learn a little</b><small>Discover a surprising idea</small></span><span class="suggestion-arrow">↗</span></button>
+            <button class="suggestion" data-prompt="Help me write a friendly, thoughtful note to thank someone who helped me."><span class="suggestion-icon peach">↗</span><span><b>Find the words</b><small>Write a thoughtful thank-you</small></span><span class="suggestion-arrow">↗</span></button>
+            <button class="suggestion" data-prompt="Help me plan a simple, delicious three-day meal plan with a short grocery list."><span class="suggestion-icon blue">◫</span><span><b>Get organized</b><small>Plan three easy dinners</small></span><span class="suggestion-arrow">↗</span></button>
+          </div><div class="welcome-bottom"><span><span class="tiny-shield">⬡</span> Every message checked by your firewall</span><span>MADE FOR YOUR EVERYDAY ✳</span></div>
+        </div>
+        <div class="messages hidden" id="messages"></div>
+      </section>
+      <footer class="composer-area"><div class="composer-shell"><label class="composer" for="messageInput"><textarea id="messageInput" rows="1" maxlength="16000" placeholder="Ask anything. This is your space…"></textarea><div class="composer-toolbar"><div class="composer-hints"><span class="firewall-pill"><span>⬡</span> Firewall protected</span><span class="hint-divider">·</span><span class="keyboard-hint">↵ to send</span></div><div class="composer-tools"><span class="char-count" id="charCount"></span><button class="send-button" id="sendButton" aria-label="Send message" disabled><svg viewBox="0 0 20 20" fill="none"><path d="M10 15V5m0 0 4 4m-4-4L6 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div></label></div><p class="disclaimer">AI can make mistakes. Keep an eye on the important details.</p></footer>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

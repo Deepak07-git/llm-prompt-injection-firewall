@@ -8,3 +8,7 @@ venv/
 detections.jsonl
 .pytest_cache/
 .DS_Store
+*.log
+.runtime.json
+chatbot/.env
+chatbot/conversations.sqlite3
